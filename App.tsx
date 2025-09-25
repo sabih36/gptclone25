@@ -19,12 +19,15 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      if (!process.env.API_KEY) {
-        setError("API_KEY environment variable not set.");
+      // In a browser environment, process.env is not available by default.
+      // This check handles cases where the environment is not configured to expose the API key.
+      if (typeof process === 'undefined' || typeof process.env === 'undefined' || !process.env.API_KEY) {
+        setError("Configuration Error: Unable to initialize AI service. The API key may be missing or the application environment is not configured correctly.");
         return;
       }
       const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
       setAi(genAI);
+      setError(null); // Clear initial error message on success
     } catch (e: unknown) {
       handleError(e, "An unknown error occurred during initialization.");
     }
@@ -228,7 +231,7 @@ const App: React.FC = () => {
           <div className="w-full bg-[#343541] border-t border-gray-600/50">
               <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                 {error && <p className="text-red-400 text-center text-sm mb-2">{error}</p>}
-                <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+                <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} disabled={!ai} />
                 <p className="text-xs text-center text-gray-400 mt-2">
                   Gemini ChatGPT Clone. This is a demo and may not be perfect.
                 </p>

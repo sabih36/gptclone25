@@ -5,9 +5,10 @@ import { SendIcon } from './Icons';
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
   isLoading: boolean;
+  disabled?: boolean;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, disabled }) => {
   const [inputValue, setInputValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -19,7 +20,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }) => {
   }, [inputValue]);
 
   const handleSubmit = () => {
-    if (inputValue.trim() && !isLoading) {
+    if (inputValue.trim() && !isLoading && !disabled) {
       onSendMessage(inputValue);
       setInputValue('');
     }
@@ -39,14 +40,14 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }) => {
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Message ChatGPT Clone..."
+        placeholder={disabled ? "AI service not available" : "Message ChatGPT Clone..."}
         rows={1}
-        className="w-full resize-none p-4 pr-12 text-gray-100 bg-[#40414F] rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-gray-500"
-        disabled={isLoading}
+        className="w-full resize-none p-4 pr-12 text-gray-100 bg-[#40414F] rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+        disabled={isLoading || disabled}
       />
       <button
         onClick={handleSubmit}
-        disabled={isLoading || !inputValue.trim()}
+        disabled={isLoading || !inputValue.trim() || disabled}
         className="absolute right-3 bottom-3 p-2 rounded-lg bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors"
         aria-label="Send message"
       >
