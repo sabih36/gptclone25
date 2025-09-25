@@ -46,6 +46,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess })
                 
                 <form onSubmit={handleSubmit}>
                     <div className="space-y-4">
+                        {activeTab === 'signup' && (
+                            <div>
+                                <label htmlFor="name" className="block text-sm font-medium text-gray-300">Name</label>
+                                <input 
+                                    type="text" 
+                                    id="name"
+                                    name="name" 
+                                    required 
+                                    className="mt-1 block w-full px-3 py-2 bg-[#40414F] border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
+                                    placeholder="Your Name" 
+                                />
+                            </div>
+                        )}
                         <div>
                             <label htmlFor="email" className="block text-sm font-medium text-gray-300">Email address</label>
                             <input 

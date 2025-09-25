@@ -1,45 +1,41 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import { Message, Role, Conversation } from './types';
 import ChatInput from './components/ChatInput';
 import ChatMessage from './components/ChatMessage';
 import WelcomeScreen from './components/WelcomeScreen';
 import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
+import ApiKeyModal from './components/ApiKeyModal';
+import { aiService } from './services/aiService';
 
 const App: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [ai, setAi] = useState<GoogleGenAI | null>(null);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [isAiInitialized, setIsAiInitialized] = useState<boolean>(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    try {
-      // In a browser environment, process.env is not available by default.
-      // This check handles cases where the environment is not configured to expose the API key.
-      if (typeof process === 'undefined' || typeof process.env === 'undefined' || !process.env.API_KEY) {
-        setError("Configuration Error: Unable to initialize AI service. The API key may be missing or the application environment is not configured correctly.");
-        return;
-      }
-      const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      setAi(genAI);
-      setError(null); // Clear initial error message on success
-    } catch (e: unknown) {
-      handleError(e, "An unknown error occurred during initialization.");
+    const apiKey = localStorage.getItem('gemini-api-key');
+    if (apiKey) {
+      handleSaveApiKey(apiKey, true);
+    } else {
+      setIsApiKeyModalOpen(true);
+      setError("Please set your Gemini API Key to start chatting.");
     }
   }, []);
   
-  // Initialize first chat on load
   useEffect(() => {
-    if (conversations.length === 0) {
+    if (isAiInitialized && conversations.length === 0) {
       handleNewChat();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isAiInitialized]);
 
   const handleError = (e: unknown, defaultMessage: string) => {
     let errorMessage = defaultMessage;
@@ -47,7 +43,6 @@ const App: React.FC = () => {
         errorMessage = `Error: ${e.message}`;
     }
     setError(errorMessage);
-    // Optionally update the active conversation with an error message
     if(activeConversationId) {
        setConversations(prev => prev.map(convo => {
           if (convo.id === activeConversationId) {
@@ -60,6 +55,23 @@ const App: React.FC = () => {
        }));
     }
   };
+  
+  const handleSaveApiKey = (apiKey: string, isInitialLoad = false) => {
+    const success = aiService.initialize(apiKey);
+    if (success) {
+      localStorage.setItem('gemini-api-key', apiKey);
+      setIsAiInitialized(true);
+      setIsApiKeyModalOpen(false);
+      setApiKeyError(null);
+      setError(null); // Clear any initial error
+    } else {
+      setApiKeyError("Invalid API Key. Please check your key and try again.");
+      if (isInitialLoad) {
+        localStorage.removeItem('gemini-api-key');
+        setIsApiKeyModalOpen(true);
+      }
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -70,28 +82,29 @@ const App: React.FC = () => {
   }, [conversations, activeConversationId, isLoading]);
   
   const generateTitle = useCallback(async (prompt: string) => {
-    if (!ai || !activeConversationId) return;
+    if (!isAiInitialized || !activeConversationId) return;
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Generate a short, concise title (4-5 words max) for this user prompt: "${prompt}"`,
-        });
-        const newTitle = response.text.replace(/"/g, ''); // Clean up quotes
+        const newTitle = await aiService.generateTitle(prompt);
         setConversations(prev => prev.map(convo => 
             convo.id === activeConversationId ? { ...convo, title: newTitle } : convo
         ));
     } catch (e) {
         console.error("Failed to generate title:", e);
-        // Silently fail, keep "New Chat" title
     }
-  }, [ai, activeConversationId]);
+  }, [isAiInitialized, activeConversationId]);
 
   const handleSendMessage = useCallback(async (prompt: string) => {
-    if (!ai || !activeConversationId) {
-      setError("AI service is not initialized or no active chat.");
+    if (!isAiInitialized || !activeConversationId) {
+      setError("AI service is not initialized. Please set your API key.");
       return;
     }
     if (!prompt.trim()) return;
+
+    const currentConvo = conversations.find(c => c.id === activeConversationId);
+    if (!currentConvo) return;
+    
+    const history = currentConvo.messages;
+    const isFirstMessage = history.length === 0;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -99,40 +112,24 @@ const App: React.FC = () => {
       content: prompt,
     };
     
-    const activeConversation = conversations.find(c => c.id === activeConversationId);
-    const isFirstMessage = activeConversation && activeConversation.messages.length === 0;
-
-    setConversations(prev => prev.map(convo => 
-      convo.id === activeConversationId ? { ...convo, messages: [...convo.messages, userMessage] } : convo
-    ));
-    
-    setIsLoading(true);
-    setError(null);
-
-    const modelMessageId = (Date.now() + 1).toString();
     const modelMessagePlaceholder: Message = {
-      id: modelMessageId,
+      id: (Date.now() + 1).toString(),
       role: Role.MODEL,
       content: '',
     };
 
     setConversations(prev => prev.map(convo => 
-      convo.id === activeConversationId ? { ...convo, messages: [...convo.messages, modelMessagePlaceholder] } : convo
+      convo.id === activeConversationId 
+      ? { ...convo, messages: [...convo.messages, userMessage, modelMessagePlaceholder] } 
+      : convo
     ));
+    
+    setIsLoading(true);
+    setError(null);
 
     try {
-        const chat = ai.chats.create({
-            model: 'gemini-2.5-flash',
-            history: activeConversation?.messages.slice(0, -2).map(msg => ({
-                role: msg.role === Role.USER ? 'user' : 'model',
-                parts: [{ text: msg.content }]
-            })) ?? [],
-            config: {
-                systemInstruction: 'You are a helpful assistant, designed to be a clone of ChatGPT. Your responses should be informative, well-structured, and engaging.',
-            },
-        });
-        
-      const stream = await chat.sendMessageStream({ message: prompt });
+      aiService.startChat(history);
+      const stream = await aiService.sendMessageStream(prompt);
       let fullResponse = '';
       for await (const chunk of stream) {
         fullResponse += chunk.text;
@@ -142,7 +139,7 @@ const App: React.FC = () => {
               ? {
                   ...convo,
                   messages: convo.messages.map(msg =>
-                    msg.id === modelMessageId ? { ...msg, content: fullResponse } : msg
+                    msg.id === modelMessagePlaceholder.id ? { ...msg, content: fullResponse } : msg
                   ),
                 }
               : convo
@@ -152,10 +149,9 @@ const App: React.FC = () => {
     } catch (e: unknown) {
       const errorMessage = "An error occurred while fetching the response.";
       handleError(e, errorMessage);
-      // Remove placeholder on error
       setConversations(prev => prev.map(convo => 
         convo.id === activeConversationId 
-        ? {...convo, messages: convo.messages.filter(msg => msg.id !== modelMessageId)} 
+        ? {...convo, messages: convo.messages.filter(msg => msg.id !== modelMessagePlaceholder.id)} 
         : convo
       ));
     } finally {
@@ -164,7 +160,7 @@ const App: React.FC = () => {
         generateTitle(prompt);
       }
     }
-  }, [ai, activeConversationId, conversations, generateTitle]);
+  }, [isAiInitialized, activeConversationId, conversations, generateTitle]);
 
   const handleNewChat = () => {
     const newConversation: Conversation = {
@@ -209,11 +205,15 @@ const App: React.FC = () => {
             onNewChat={handleNewChat}
             onSignIn={() => setIsAuthModalOpen(true)}
             onSignOut={() => setIsAuthenticated(false)}
+            onSetApiKey={() => {
+              setApiKeyError(null);
+              setIsApiKeyModalOpen(true);
+            }}
         />
         <div className="flex flex-col flex-1">
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              {messages.length === 0 && !isLoading ? (
+              {messages.length === 0 && !isLoading && isAiInitialized ? (
                 <WelcomeScreen onExampleClick={handleSendMessage} />
               ) : (
                 messages.map((msg, index) => (
@@ -224,6 +224,12 @@ const App: React.FC = () => {
                   />
                 ))
               )}
+              {!isAiInitialized && !isApiKeyModalOpen && (
+                 <div className="flex flex-col items-center justify-center h-full text-center text-gray-200">
+                    <h1 className="text-2xl font-bold">Welcome to Gemini Chat Clone</h1>
+                    <p className="mt-4">Please set your API key to begin.</p>
+                 </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
           </div>
@@ -231,7 +237,7 @@ const App: React.FC = () => {
           <div className="w-full bg-[#343541] border-t border-gray-600/50">
               <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                 {error && <p className="text-red-400 text-center text-sm mb-2">{error}</p>}
-                <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} disabled={!ai} />
+                <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} disabled={!isAiInitialized} />
                 <p className="text-xs text-center text-gray-400 mt-2">
                   Gemini ChatGPT Clone. This is a demo and may not be perfect.
                 </p>
@@ -239,6 +245,11 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
+      <ApiKeyModal 
+        isOpen={isApiKeyModalOpen}
+        onSave={handleSaveApiKey}
+        errorMessage={apiKeyError}
+      />
       <AuthModal 
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}

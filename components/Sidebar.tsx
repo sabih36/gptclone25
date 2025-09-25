@@ -1,6 +1,6 @@
 import React from 'react';
 import { Conversation } from '../types';
-import { PlusIcon, UserIcon, SignOutIcon, ChatBubbleIcon, TrashIcon } from './Icons';
+import { PlusIcon, UserIcon, SignOutIcon, ChatBubbleIcon, TrashIcon, KeyIcon } from './Icons';
 
 interface SidebarProps {
     isAuthenticated: boolean;
@@ -11,6 +11,7 @@ interface SidebarProps {
     activeConversationId: string | null;
     onSelectConversation: (id: string) => void;
     onDeleteConversation: (id: string) => void;
+    onSetApiKey: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -21,7 +22,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     conversations,
     activeConversationId,
     onSelectConversation,
-    onDeleteConversation
+    onDeleteConversation,
+    onSetApiKey
 }) => {
     return (
         <div className="flex flex-col w-64 bg-[#202123] p-2">
@@ -63,6 +65,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             <div className="border-t border-gray-700 pt-2 space-y-2">
+                <button
+                    onClick={onSetApiKey}
+                    className="flex items-center p-3 rounded-md text-sm font-medium text-white hover:bg-gray-700 w-full text-left"
+                >
+                    <KeyIcon />
+                    <span className="ml-3">Set API Key</span>
+                </button>
                 {isAuthenticated ? (
                     <>
                         <div className="flex items-center p-3 rounded-md text-sm font-medium text-white">
