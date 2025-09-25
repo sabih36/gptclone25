@@ -1,28 +1,81 @@
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import { Message, Role } from '../types';
 
+const API_KEY_STORAGE_KEY = 'gemini_api_key';
+
 class AIService {
   private ai: GoogleGenAI | null = null;
   private chat: Chat | null = null;
+  private apiKey: string | null = null;
+
+  constructor() {
+    this.apiKey = this.getApiKeyFromStorage();
+  }
+
+  private getApiKeyFromStorage(): string | null {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return localStorage.getItem(API_KEY_STORAGE_KEY);
+    }
+    return null;
+  }
+  
+  private saveApiKeyToStorage(key: string): void {
+     if (typeof window !== 'undefined' && window.localStorage) {
+       localStorage.setItem(API_KEY_STORAGE_KEY, key);
+     }
+  }
+
+  private clearApiKeyFromStorage(): void {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.removeItem(API_KEY_STORAGE_KEY);
+    }
+  }
 
   /**
-   * Initializes the GoogleGenAI client using the API key from environment variables.
+   * Initializes the GoogleGenAI client using a stored API key.
    * @returns {boolean} True if initialization is successful, false otherwise.
    */
   initialize(): boolean {
+    if (!this.apiKey && typeof process?.env?.API_KEY !== 'undefined') {
+        this.apiKey = process.env.API_KEY;
+    }
+      
+    if (!this.apiKey) {
+      console.error("API_KEY not found in storage or environment.");
+      return false;
+    }
+
     try {
-      // Per coding guidelines, API key must come from process.env.API_KEY.
-      if (!process.env.API_KEY) {
-        console.error("API_KEY environment variable not found.");
-        return false;
-      }
-      this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      this.ai = new GoogleGenAI({ apiKey: this.apiKey });
       return true;
     } catch (error) {
       console.error("Failed to initialize GoogleGenAI:", error);
       this.ai = null;
+      this.apiKey = null;
+      this.clearApiKeyFromStorage();
       return false;
     }
+  }
+
+  async setApiKey(key: string): Promise<boolean> {
+      if (!key) {
+        this.clearApiKey();
+        return false;
+      }
+      this.apiKey = key;
+      this.saveApiKeyToStorage(key);
+      return this.initialize();
+  }
+
+  getApiKey(): string | null {
+      return this.apiKey;
+  }
+  
+  clearApiKey(): void {
+      this.apiKey = null;
+      this.ai = null;
+      this.chat = null;
+      this.clearApiKeyFromStorage();
   }
   
   /**

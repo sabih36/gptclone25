@@ -5,6 +5,7 @@ import ChatMessage from './components/ChatMessage';
 import WelcomeScreen from './components/WelcomeScreen';
 import Sidebar from './components/Sidebar';
 import { aiService } from './services/aiService';
+import ApiKeyModal from './components/ApiKeyModal';
 
 const App: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -12,19 +13,23 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isAiInitialized, setIsAiInitialized] = useState<boolean>(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Initial load effect
   useEffect(() => {
-    const aiReady = aiService.initialize();
-    setIsAiInitialized(aiReady);
-    if (!aiReady) {
-      setError("AI Service failed to initialize. Ensure API_KEY is set in environment variables.");
-    } else {
-      // Start with a new chat on load
-      handleNewChat();
-    }
+    const init = () => {
+        const aiReady = aiService.initialize();
+        setIsAiInitialized(aiReady);
+        if (aiReady) {
+            // Start with a new chat on load
+            handleNewChat();
+        } else {
+            setIsApiKeyModalOpen(true);
+        }
+    };
+    init();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -115,6 +120,10 @@ const App: React.FC = () => {
   }, [isAiInitialized, activeConversationId, conversations, generateTitle]);
 
   const handleNewChat = () => {
+    if (!isAiInitialized) {
+      setIsApiKeyModalOpen(true);
+      return;
+    }
     const newConversation: Conversation = { id: crypto.randomUUID(), title: 'New Chat', messages: [] };
     setConversations(prev => [newConversation, ...prev]);
     setActiveConversationId(newConversation.id);
@@ -143,11 +152,30 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSaveApiKey = async (apiKey: string) => {
+    setError(null);
+    const success = await aiService.setApiKey(apiKey);
+    if (success) {
+        setIsAiInitialized(true);
+        setIsApiKeyModalOpen(false);
+        if (!activeConversationId) {
+          handleNewChat();
+        }
+    } else {
+        setError("Failed to initialize AI Service with the provided key. Please check your key and try again.");
+    }
+};
+
   const activeConversation = conversations.find(c => c.id === activeConversationId);
   const messages = activeConversation ? activeConversation.messages : [];
 
   return (
     <>
+      <ApiKeyModal
+          isOpen={isApiKeyModalOpen}
+          onClose={() => { if(isAiInitialized) setIsApiKeyModalOpen(false) }}
+          onSave={handleSaveApiKey}
+      />
       <div className="flex h-screen w-screen text-gray-100 bg-[#343541]">
         <Sidebar
             conversations={conversations}
@@ -155,25 +183,31 @@ const App: React.FC = () => {
             onSelectConversation={handleSelectConversation}
             onDeleteConversation={handleDeleteConversation}
             onNewChat={handleNewChat}
+            onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
         />
         <div className="flex flex-col flex-1">
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              {messages.length === 0 && !isLoading && isAiInitialized ? (
+              {isAiInitialized && messages.length === 0 && !isLoading ? (
                 <WelcomeScreen onExampleClick={handleSendMessage} />
-              ) : (
+              ) : isAiInitialized ? (
                 messages.map((msg, index) => (
                   <ChatMessage 
                     key={msg.id} 
                     message={msg} 
-                    isStreaming={isLoading && index === messages.length - 1 && msg.role === Role.MODEL && msg.content === ''}
+                    isStreaming={isLoading && index === messages.length - 1 && msg.role === Role.MODEL}
                   />
                 ))
-              )}
-              {!isAiInitialized && (
+              ) : (
                  <div className="flex flex-col items-center justify-center h-full text-center text-gray-200">
                     <h1 className="text-2xl font-bold">Welcome to Gemini Chat Clone</h1>
-                    <p className="mt-4">AI Service is not initialized. Please check your API key setup.</p>
+                    <p className="mt-4">Please set your Gemini API Key to begin.</p>
+                     <button 
+                        onClick={() => setIsApiKeyModalOpen(true)}
+                        className="mt-4 px-4 py-2 rounded-md bg-purple-600 hover:bg-purple-500 transition-colors"
+                    >
+                        Set API Key
+                    </button>
                  </div>
               )}
               <div ref={messagesEndRef} />

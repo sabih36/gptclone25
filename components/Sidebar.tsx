@@ -1,6 +1,6 @@
 import React from 'react';
 import { Conversation } from '../types';
-import { PlusIcon, ChatBubbleIcon, TrashIcon } from './Icons';
+import { PlusIcon, ChatBubbleIcon, TrashIcon, CogIcon } from './Icons';
 
 interface SidebarProps {
     onNewChat: () => void;
@@ -8,6 +8,7 @@ interface SidebarProps {
     activeConversationId: string | null;
     onSelectConversation: (id: string) => void;
     onDeleteConversation: (id: string) => void;
+    onOpenApiKeyModal: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -16,6 +17,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     activeConversationId,
     onSelectConversation,
     onDeleteConversation,
+    onOpenApiKeyModal,
 }) => {
     return (
         <div className="flex flex-col w-64 bg-[#202123] p-2">
@@ -54,6 +56,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                       </div>
                   ))}
                 </div>
+            </div>
+            
+            <div className="pt-2 border-t border-gray-700">
+                <button
+                    onClick={onOpenApiKeyModal}
+                    className="flex items-center p-3 rounded-md text-sm font-medium text-white hover:bg-gray-700/80 w-full text-left"
+                    aria-label="Open API key settings"
+                >
+                    <CogIcon />
+                    <span className="ml-3">API Key Settings</span>
+                </button>
             </div>
         </div>
     );

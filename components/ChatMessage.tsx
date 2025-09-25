@@ -53,7 +53,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }) => {
           {isUser ? <UserIcon /> : <GeminiIcon />}
         </div>
         <div className={`flex-1 overflow-x-auto ${contentClass} pt-1`}>
-          {formatContent(message.content)}
+          {message.content ? formatContent(message.content) : null}
           {isStreaming && <Cursor />}
         </div>
       </div>
