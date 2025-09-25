@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { SendIcon } from './Icons';
 
@@ -40,7 +39,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, disable
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={disabled ? "AI service not available" : "Message ChatGPT Clone..."}
+        placeholder={disabled ? "AI service is not available" : "Message ChatGPT Clone..."}
         rows={1}
         className="w-full resize-none p-4 pr-12 text-gray-100 bg-[#40414F] rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
         disabled={isLoading || disabled}

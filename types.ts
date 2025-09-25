@@ -11,7 +11,7 @@ export interface Message {
 }
 
 export interface Conversation {
-  id: string;
+  id:string;
   title: string;
   messages: Message[];
 }
